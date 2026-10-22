@@ -13,11 +13,12 @@ from pathlib import Path
 
 from app.agent import llm
 from app.tools import add, multiply
+from app.RAG import search_knowledge_base
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
 
-tools = [add, multiply]
+tools = [add, multiply, search_knowledge_base]
 llm_with_tools = llm.bind_tools(tools)
 
 def assistant(state: AgentState, config: RunnableConfig,) -> dict:
