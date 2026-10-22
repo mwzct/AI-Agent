@@ -1,68 +1,52 @@
-# 行迹：智能旅行规划助手
+# 行迹 · 智能旅行规划助手
 
-行迹是一个中文旅行规划对话原型。浏览器客户端负责收集问题和展示回答；FastAPI 接收请求，调用 LangGraph Agent，并返回文字结果。工作流包含本地资料检索节点，模型也可以按需调用知识库检索或 Tavily 联网搜索工具。
+行迹是一个正在开发中的中文旅行规划助手。你可以在浏览器里描述目的地、天数和偏好；后端检索本地攻略、调用 Agent 生成建议，并把回答中的行程整理成可选择的路线卡片。选择卡片后，地图会标出沿途地点。
 
-目前它适合演示和迭代旅行问答流程，**还不是可直接依赖的订票或实时行程服务**。行程、价格、开放时间等信息仍需核实。
+项目目前是**功能原型**：地图连线不是导航路线，景点开放时间、票价、交通耗时等信息需要另行核实，也不提供预订服务。
 
-## 已实现的功能
+## 现在可以做什么
 
-- 浏览器聊天界面：输入问题、快捷填入示例问题、查看回复与请求错误、开始新会话。
-- `POST /chat`：接受消息和 `thread_id`，返回文字回答和可选路线；`GET /health` 用于健康检查。
-- LangGraph 工作流：每轮先执行本地检索节点并把结果交给模型；模型可按需继续调用本地检索或联网搜索。
-- 路线结构化：额外调用一次模型，从本轮回答中提取最多 3 条路线及各站点；提取失败时只返回原文字回答。
-- 地图预览：选择路线后，在 OpenStreetMap 底图上逐个定位并标记地点，以虚线表示访问顺序。
-- 本地知识库：读取 `knowledge/` 下的 Markdown/TXT，使用字符级 TF-IDF 检索并返回片段及文件来源。目前仓库中的资料主要关于上海。
-- 会话检查点：SQLite 保存同一 `thread_id` 的对话上下文。
-- 长期记忆雏形：每次提问前尝试从消息中提取稳定事实或偏好，保存到 SQLite，并将最近的记忆提供给 Agent。
+1. 在客户端提问或使用快捷示例，围绕同一个会话继续追问。
+2. Agent 每轮先检索 `knowledge/` 中的本地资料，再生成中文回答；必要时可以调用本地检索或 Tavily 联网搜索工具。
+3. 后端从回答中提取最多 3 条路线，每条包含简介和 2～8 个站点。没有明确路线或提取失败时，仍返回原文字回答，路线列表为空。
+4. 点击路线卡片的“选择并查看地图”，在 OpenStreetMap 地图上显示定位成功的站点和访问顺序示意线。
+5. 用 `thread_id` 维持对话上下文。项目还有一个长期记忆雏形，会尝试保存用户表达的稳定偏好。
 
-## 请求流程
+上海是目前主要的示例知识库目的地；其他城市的回答效果取决于新增资料和联网搜索结果。
 
-```text
-浏览器 client/  -- POST /chat -->  FastAPI app/main.py
-                                    |-- 提取、读取长期记忆 -> agent_memories.sqlite
-                                    `-- LangGraph app/workflow.py
-                                          |-- 检索 knowledge/ 的当前内存索引
-                                          |-- 调用大语言模型
-                                          |-- 按需调用知识库或 Tavily 搜索
-                                          `-- 保存会话 -> agent_checkpoints.sqlite
-                         <-- {"answer": "...", "routes": [...]} --
+## 快速开始
+
+在项目根目录执行。若已有 `.venv`，可直接使用；若需新建环境，当前仓库还没有版本锁定的依赖文件，可先安装所需包：
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install fastapi uvicorn langchain langchain-openai langchain-tavily langgraph langgraph-checkpoint-sqlite scikit-learn python-dotenv pytest
 ```
 
-| 路径 | 作用 |
-| --- | --- |
-| `client/` | 无构建步骤的 HTML/CSS/JavaScript 客户端 |
-| `app/main.py` | 托管客户端，提供 `/health`、`/chat` |
-| `app/workflow.py` | 检索节点、Agent、工具路由、会话检查点与系统提示词 |
-| `app/RAG.py` | 加载文档、切分、构建 TF-IDF 索引及检索 |
-| `app/tools.py` | Tavily 联网搜索工具 |
-| `app/llm.py` | 模型客户端配置 |
-| `app/long_term_memory.py` | 长期记忆提取与 SQLite 存取 |
-| `app/itinerary.py` | 从回答中提取并校验路线卡片数据 |
-| `knowledge/` | 本地目的地资料 |
-| `tests/` | 现有少量单元测试 |
-
-## 本地运行
-
-在项目根目录使用已有的 `.venv`；若重新创建环境，当前仓库**尚无锁定的依赖清单**，需要安装 FastAPI、Uvicorn、LangChain、LangGraph、LangGraph SQLite checkpointer、LangChain OpenAI/Tavily、scikit-learn、python-dotenv 等依赖，并按实际环境固定版本。
-
-在项目根目录准备 `.env`，不要提交密钥。项目读取以下变量：
+在项目根目录创建 `.env`，填入你自己的密钥和模型地址，不要提交该文件。下面是使用 DeepSeek 兼容接口时的示例；若使用别的服务，请相应修改模型名和地址。
 
 ```dotenv
-OPENAI_API_KEY=your-key
-OPENAI_BASE_URL=https://your-compatible-endpoint/v1
+OPENAI_API_KEY=your-model-api-key
+OPENAI_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL=deepseek-chat
-TAVILY_API_KEY=your-tavily-key
+TAVILY_API_KEY=your-tavily-api-key
 ```
 
-`OPENAI_BASE_URL` 可省略，届时使用 OpenAI 兼容客户端的默认地址；`LLM_MODEL` 默认 `deepseek-chat`。启用联网搜索需要有效的 Tavily 密钥。应用初始化时会创建 SQLite 数据库文件。
+`OPENAI_BASE_URL` 未设置时，模型客户端使用默认服务地址；`LLM_MODEL` 未设置时默认为 `deepseek-chat`。联网搜索需要有效的 Tavily 密钥。
+
+启动 FastAPI：
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-打开 `http://127.0.0.1:8000/` 使用客户端；`http://127.0.0.1:8000/docs` 查看 API 文档。客户端与 API 由同一 FastAPI 服务提供，无需单独启动前端开发服务器。
+打开 [客户端](http://127.0.0.1:8000/) 开始对话，或访问 [API 文档](http://127.0.0.1:8000/docs)。前端由 FastAPI 直接托管，不需要单独启动前端服务。首次运行会在项目目录中创建 SQLite 数据库文件。
 
-接口调用示例：
+## 使用示例
+
+在页面输入“我想去上海玩两天，第一次去，请推荐一个节奏轻松的行程”。有明确路线时，页面会在文字回答下面展示路线卡片；点击其中一张，右侧地图会定位其站点。找不到的地点会跳过，并在地图状态中提示。
+
+也可以直接调用接口：
 
 ```http
 POST /chat
@@ -74,31 +58,70 @@ Content-Type: application/json
 }
 ```
 
-成功响应包含 `answer` 和 `routes`。`routes` 每项包含 `title`、`description`、`destination`、`stops`，每个站点有 `name`、`description`；普通问答或提取失败时 `routes` 为空数组。请求失败时接口返回错误状态，客户端显示错误提示。路线整理会额外消耗一次模型请求。
+响应结构如下（内容仅为格式示例，不是固定行程）：
 
-## 知识库与会话
+```json
+{
+  "answer": "两天可以分别安排浦西和浦东……",
+  "routes": [
+    {
+      "title": "浦西经典线",
+      "description": "适合初次到访，步行和地铁结合。",
+      "destination": "上海",
+      "stops": [
+        {"name": "豫园", "description": "逛园林和老街。"},
+        {"name": "外滩", "description": "欣赏黄浦江景。"}
+      ]
+    }
+  ]
+}
+```
 
-把 UTF-8 编码的 `.md` 或 `.txt` 文件放入 `knowledge/`。索引在 `app/RAG.py` **首次导入时**构建：新增或修改资料后需要重启服务；仅刷新浏览器或更换 `thread_id` 不会更新已加载的索引。
+`answer` 始终是文字；`routes` 可能是空数组。路线整理会在 Agent 回答之后**额外调用一次模型**，因此会增加耗时和调用成本。`GET /health` 返回服务健康状态。
 
-工作流每轮都会重新查询**当前进程中的索引**，并通过 `knowledge_context` 状态字段传入模型。不过检索问题直接使用最新一条用户消息，像“第二天呢？”这样的省略式追问可能匹配不到目的地。TF-IDF 也不保证每次都找出真正相关的资料，回答中的来源应人工核对。
+## 实现方式
 
-地图依赖浏览器加载 Leaflet 和 OpenStreetMap 瓦片。点击路线卡片后，客户端按不超过每秒一次的速度查询 Nominatim 公开地理编码服务；找不到的站点不会被标记。地图上的虚线是站点顺序示意，**不是真实道路导航**。地点名称会发送到第三方定位服务，部署前应核对其使用政策与隐私要求。
+```text
+浏览器 client/
+   │  提问、展示回答和路线卡片
+   ▼
+FastAPI /chat ── 提取/读取长期记忆 ── agent_memories.sqlite
+   │
+   ▼
+LangGraph：本地检索 → Agent ↔ 知识库/Tavily 工具
+   │                          └─ 会话检查点 → agent_checkpoints.sqlite
+   ▼
+路线结构化：从最终回答提取路线 JSON
+   │
+   └─ 返回 answer + routes → 用户选择卡片 → 浏览器定位地点并绘制地图
+```
 
-客户端把 `thread_id` 保存在当前标签页的 `sessionStorage` 中；右上角重置按钮会生成新编号并清空页面消息，**不会删除**服务端旧检查点或长期记忆。刷新页面会清空可见消息，但同一标签页仍可沿用原会话编号与服务端上下文。
+| 位置 | 职责 |
+| --- | --- |
+| `client/` | 页面、路线卡片、地图交互 |
+| `app/main.py` | FastAPI 页面托管、`/chat` 和 `/health` |
+| `app/workflow.py` | 系统提示词、每轮检索、Agent 工具调用和会话状态 |
+| `app/RAG.py` | 加载本地文档、TF-IDF 检索 |
+| `app/itinerary.py` | 提取并校验路线数据 |
+| `app/tools.py` | Tavily 联网搜索 |
+| `app/long_term_memory.py` | 长期记忆提取和 SQLite 存取 |
+| `knowledge/` | Markdown/TXT 目的地资料 |
+| `tests/` | 基础单元测试 |
 
-长期记忆目前没有用户身份隔离，所有会话共享同一记忆库；提取也不是以用户明确授权为前提。因此不要在多人或生产环境中直接使用，也不要输入敏感个人信息。
+## 知识库、地图与会话注意事项
 
-## 当前限制与下一步
+- 本地知识库支持 `knowledge/` 下的 `.md` 和 `.txt` 文件。`app/RAG.py` 首次导入时建立索引；**修改资料后要重启服务**，只刷新浏览器或更换 `thread_id` 不会更新索引。
+- 工作流每轮检索最新用户消息，并把结果交给 Agent。省略目的地的追问（如“第二天呢？”）可能检索不准；TF-IDF 命中也不等于事实正确。
+- 地图在浏览器端加载 Leaflet、OpenStreetMap 瓦片，并向 Nominatim 发送地点名称进行定位，需要联网。虚线仅表示站点顺序，**不是步行、驾车或公共交通的实际路径**。公开定位服务有使用限制，不适合直接承担大规模生产流量。
+- 客户端的 `thread_id` 保存在当前标签页的 `sessionStorage`。刷新页面会清空可见消息，但同一标签页仍可沿用服务端对话上下文；点击重置只会创建新编号，**不会删除**旧检查点或长期记忆。
+- 长期记忆目前不按用户隔离，也没有授权、查看和删除流程。不要在多人或生产环境中直接使用，更不要输入敏感个人信息。
 
-- 尚无路线距离计算、天气、营业时间、票价或预订接口；联网搜索结果也不能替代官方实时信息。
-- 路线卡片依赖模型从文字中提取地点，不保证每次生成，也不保证地理编码一定命中；仍需核对地点准确性。
-- 客户端没有结构化日程编辑、历史会话列表或来源的独立展示。
-- 增加可刷新索引机制、会话感知的检索问题构造，以及更可靠的相关性判断。
-- 为长期记忆增加用户隔离、明确授权和查看/删除能力。
-- 补齐依赖清单，以及 API、RAG、工作流和客户端的测试。当前 `tests/` 覆盖记忆提取、一次 Agent 回答、路线 JSON 校验和检索状态字段，尚未覆盖浏览器地图交互的自动化测试。
-
-运行现有测试：
+## 测试与后续工作
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
+
+现有测试覆盖记忆提取、Agent 基础回答、路线 JSON 校验和检索状态字段；浏览器地图交互已做过一次上海路线的人工验证，但尚无自动化端到端测试。
+
+下一步优先考虑：补齐并锁定依赖、按用户隔离长期记忆、让省略式追问也能构造准确检索词、支持知识库热更新，以及接入可验证的路线/交通数据和结构化行程编辑。当前模型生成的建议与第三方地图定位结果都需要用户核对。
