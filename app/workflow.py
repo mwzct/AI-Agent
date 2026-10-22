@@ -12,13 +12,13 @@ import sqlite3
 from pathlib import Path
 
 from app.llm import llm
-from app.tools import add, multiply
-from app.RAG import search_knowledge_base, retrieve_document
+from app.tools import web_search
+from app.RAG import search_knowledge_base, retrieve_documents
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
 
-tools = [add, multiply, search_knowledge_base]
+tools = [search_knowledge_base, web_search]
 llm_with_tools = llm.bind_tools(tools)
 
 def retrieve(state: AgentState) -> dict:
@@ -30,7 +30,7 @@ def retrieve(state: AgentState) -> dict:
     )
 
     return {
-        "knowledge_context": retrieve_document(latest_question)
+        "knowledge_context": retrieve_documents(latest_question)
     }
 
 def assistant(state: AgentState, config: RunnableConfig,) -> dict:
