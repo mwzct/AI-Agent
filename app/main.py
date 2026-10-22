@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from app.llm import llm
-from app.agent import agent
 from app.workflow import workflow
 from app.long_term_memory import init_memory_db, extract_and_save_memories, get_memories
 
