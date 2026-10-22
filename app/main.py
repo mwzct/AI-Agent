@@ -1,15 +1,26 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from pathlib import Path
 
 from app.llm import llm
 from app.workflow import workflow
 from app.long_term_memory import init_memory_db, extract_and_save_memories, get_memories
+from app.itinerary import RouteOption, extract_routes
 
 app = FastAPI(
     title="My AI Agent",
     description="这是一个基于DeepSeek、LangChain、LangGraph和FastAPI的中文AI助手。",
     version="0.1.0",
 )
+
+CLIENT_DIR = Path(__file__).resolve().parent.parent / "client"
+app.mount("/client", StaticFiles(directory=CLIENT_DIR), name="client")
+
+@app.get("/", include_in_schema=False)
+def client入口():
+    return FileResponse(CLIENT_DIR / "index.html")
 
 init_memory_db()
 
@@ -28,6 +39,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+    routes: list[RouteOption] = Field(default_factory=list)
 
 @app.get("/health")
 def health():
@@ -69,7 +81,8 @@ def chat(request: ChatRequest):
         if not isinstance(answer, str):
             answer = str(answer)
 
-        return ChatResponse(answer=answer)
+        routes = extract_routes(llm, request.message, answer)
+        return ChatResponse(answer=answer, routes=routes)
     
     except Exception as exc:
         print(f"Agent执行失败:{type(exc).__name__}: {exc}")

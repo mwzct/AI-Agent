@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>行迹 | 智能旅行规划助手</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/client/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="行迹首页"><span class="brand-mark">↗</span><span>行迹</span></a>
+      <span class="status"><i id="status-dot"></i><span id="status-text">正在连接</span></span>
+    </header>
+    <main class="workspace">
+      <aside class="sidebar">
+        <div class="eyebrow">TRAVEL DESK</div>
+        <h1>把下一段旅程，<br><em>交给行迹。</em></h1>
+        <p class="intro">从一个想去的地方开始，逐步整理出适合你的行程。</p>
+        <div class="quick-title">快速开始</div>
+        <button class="suggestion" data-prompt="我想去上海玩两天，第一次去，请推荐一个节奏轻松的行程。"><span>上海两日游</span><b>→</b></button>
+        <button class="suggestion" data-prompt="我想去杭州玩三天，喜欢自然风景和本地美食。"><span>杭州慢旅行</span><b>→</b></button>
+        <button class="suggestion" data-prompt="帮我规划一个预算友好的周末城市旅行，出发地是上海。"><span>周末出发</span><b>→</b></button>
+        <div class="sidebar-note"><span>✦</span> 你的偏好会在本次会话中持续生效</div>
+      </aside>
+      <section class="chat-panel">
+        <div class="chat-head"><div><span class="section-label">CONVERSATION</span><h2>旅行规划台</h2></div><button id="clear-btn" class="icon-button" title="清空当前会话" aria-label="清空当前会话">↺</button></div>
+        <div id="messages" class="messages" aria-live="polite">
+          <div class="welcome"><span class="welcome-icon">✦</span><h3>你好，我是你的旅行规划助手。</h3><p>告诉我目的地、时间和偏好，我会先了解你的想法，再一起把路线变得具体。</p></div>
+        </div>
+        <div class="composer-wrap">
+          <div class="composer"><textarea id="message-input" rows="1" maxlength="4000" placeholder="例如：我想去上海玩两天，喜欢逛街和本地美食…"></textarea><button id="send-btn" class="send-button" aria-label="发送消息" title="发送消息">↑</button></div>
+          <div class="composer-meta"><span>Enter 发送 · Shift + Enter 换行</span><span id="char-count">0 / 4000</span></div>
+        </div>
+      </section>
+      <aside class="map-panel" aria-label="路线地图">
+        <div class="map-head">
+          <div><span class="section-label">ROUTE MAP</span><h2 id="map-title">路线地图</h2></div>
+          <span class="map-badge">地图预览</span>
+        </div>
+        <div class="map-frame">
+          <div id="map" role="img" aria-label="所选路线的地点地图"></div>
+          <div id="map-empty" class="map-empty"><span class="map-empty-icon">⌖</span><strong>还没有选择路线</strong><span>从回答中的路线卡片选择一条，在地图上查看站点。</span></div>
+        </div>
+        <div id="map-status" class="map-status" role="status">选择路线后显示地点和示意连线。</div>
+        <div id="map-stops" class="map-stops"></div>
+        <p class="map-disclaimer">地图位置来自公开地理编码服务；连线仅表示访问顺序，不代表实际道路路线。请核对地点与交通方式。</p>
+      </aside>
+    </main>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/client/app.js"></script>
+</body>
+</html>

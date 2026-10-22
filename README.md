@@ -1,116 +1,104 @@
-# 智能旅行规划助手
+# 行迹：智能旅行规划助手
 
-这是一个基于 FastAPI、LangGraph、LangChain 和 SQLite 的中文对话代理原型。项目目前完成了基础运行骨架：接收用户消息、调用大语言模型、按需调用工具、读取本地知识库，并保存少量长期用户偏好。现阶段的 `add`、`multiply` 等工具只是运行链路示例，不代表最终的旅行服务能力。
+行迹是一个中文旅行规划对话原型。浏览器客户端负责收集问题和展示回答；FastAPI 接收请求，调用 LangGraph Agent，并返回文字结果。工作流包含本地资料检索节点，模型也可以按需调用知识库检索或 Tavily 联网搜索工具。
 
-## 项目目标
+目前它适合演示和迭代旅行问答流程，**还不是可直接依赖的订票或实时行程服务**。行程、价格、开放时间等信息仍需核实。
 
-项目后续将逐步演进为“智能旅行规划助手”，帮助用户完成：
+## 已实现的功能
 
-- 根据出发地、目的地、日期、预算等成旅行方案
-- 结合用户偏好推荐景点、餐饮和交通
-- 对行程进行按天拆分，并说明时间、距离和安排理由
-- 基于本地目的地资料回答攻略问题，并标注信息来源
-- 在用户授权后记住稳定的旅行偏好，例如节奏、预算倾向和饮食限制
+- 浏览器聊天界面：输入问题、快捷填入示例问题、查看回复与请求错误、开始新会话。
+- `POST /chat`：接受消息和 `thread_id`，返回文字回答和可选路线；`GET /health` 用于健康检查。
+- LangGraph 工作流：每轮先执行本地检索节点并把结果交给模型；模型可按需继续调用本地检索或联网搜索。
+- 路线结构化：额外调用一次模型，从本轮回答中提取最多 3 条路线及各站点；提取失败时只返回原文字回答。
+- 地图预览：选择路线后，在 OpenStreetMap 底图上逐个定位并标记地点，以虚线表示访问顺序。
+- 本地知识库：读取 `knowledge/` 下的 Markdown/TXT，使用字符级 TF-IDF 检索并返回片段及文件来源。目前仓库中的资料主要关于上海。
+- 会话检查点：SQLite 保存同一 `thread_id` 的对话上下文。
+- 长期记忆雏形：每次提问前尝试从消息中提取稳定事实或偏好，保存到 SQLite，并将最近的记忆提供给 Agent。
 
-## 当前架构
+## 请求流程
 
 ```text
-HTTP 客户端
-    |
-    v
-FastAPI /chat
-    |
-    +--> 长期记忆提取 -> agent_memories.sqlite
-    |
-    +--> LangGraph 工作流
-    |       |
-    |       +--> 大语言模型
-    |       +--> 示例计算工具
-    |       +--> 本地 TF-IDF 知识库检索
-    |
-    +--> LangGraph 检查点 -> agent_checkpoints.sqlite
+浏览器 client/  -- POST /chat -->  FastAPI app/main.py
+                                    |-- 提取、读取长期记忆 -> agent_memories.sqlite
+                                    `-- LangGraph app/workflow.py
+                                          |-- 检索 knowledge/ 的当前内存索引
+                                          |-- 调用大语言模型
+                                          |-- 按需调用知识库或 Tavily 搜索
+                                          `-- 保存会话 -> agent_checkpoints.sqlite
+                         <-- {"answer": "...", "routes": [...]} --
 ```
 
-主要文件：
-
-| 文件 | 作用 |
+| 路径 | 作用 |
 | --- | --- |
-| `app/main.py` | FastAPI 应用、请求模型、`/health` 和 `/chat` 接口 |
-| `app/workflow.py` | LangGraph 状态、模型调用和工具路由 |
-| `app/llm.py` | 从环境变量读取模型、密钥和兼容 OpenAI 的服务地址 |
-| `app/tools.py` | 当前的示例工具，后续替换为旅行领域工具 |
-| `app/RAG.py` | 读取 `knowledge/` 下的 Markdown/TXT 并做 TF-IDF 检索 |
-| `app/long_term_memory.py` | 提取和保存用户长期事实或偏好 |
-| `tests/` | 当前已有的记忆提取和工作流单元测试 |
+| `client/` | 无构建步骤的 HTML/CSS/JavaScript 客户端 |
+| `app/main.py` | 托管客户端，提供 `/health`、`/chat` |
+| `app/workflow.py` | 检索节点、Agent、工具路由、会话检查点与系统提示词 |
+| `app/RAG.py` | 加载文档、切分、构建 TF-IDF 索引及检索 |
+| `app/tools.py` | Tavily 联网搜索工具 |
+| `app/llm.py` | 模型客户端配置 |
+| `app/long_term_memory.py` | 长期记忆提取与 SQLite 存取 |
+| `app/itinerary.py` | 从回答中提取并校验路线卡片数据 |
+| `knowledge/` | 本地目的地资料 |
+| `tests/` | 现有少量单元测试 |
 
 ## 本地运行
 
-建议使用项目自带的虚拟环境：
+在项目根目录使用已有的 `.venv`；若重新创建环境，当前仓库**尚无锁定的依赖清单**，需要安装 FastAPI、Uvicorn、LangChain、LangGraph、LangGraph SQLite checkpointer、LangChain OpenAI/Tavily、scikit-learn、python-dotenv 等依赖，并按实际环境固定版本。
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-准备 `.env`（不要提交到 Git），至少配置模型所需的密钥；如果使用兼容 OpenAI API 的服务，还可以配置：
+在项目根目录准备 `.env`，不要提交密钥。项目读取以下变量：
 
 ```dotenv
 OPENAI_API_KEY=your-key
 OPENAI_BASE_URL=https://your-compatible-endpoint/v1
-LLM_MODEL=your-model
+LLM_MODEL=deepseek-chat
+TAVILY_API_KEY=your-tavily-key
 ```
 
-启动服务：
+`OPENAI_BASE_URL` 可省略，届时使用 OpenAI 兼容客户端的默认地址；`LLM_MODEL` 默认 `deepseek-chat`。启用联网搜索需要有效的 Tavily 密钥。应用初始化时会创建 SQLite 数据库文件。
 
 ```powershell
-uvicorn app.main:app --reload
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-接口示例：
+打开 `http://127.0.0.1:8000/` 使用客户端；`http://127.0.0.1:8000/docs` 查看 API 文档。客户端与 API 由同一 FastAPI 服务提供，无需单独启动前端开发服务器。
+
+接口调用示例：
 
 ```http
-GET /health
-
 POST /chat
 Content-Type: application/json
 
 {
-  "message": "我计划 5 月去杭州玩 3 天，喜欢慢节奏和本地美食，请先给我一个行程思路。",
-  "thread_id": "demo-user-001"
+  "message": "我想去上海玩两天，喜欢城市漫步和本地美食",
+  "thread_id": "travel-demo-001"
 }
 ```
 
-`thread_id` 用于维持 LangGraph 会话检查点；当前长期记忆数据库没有用户隔离，生产环境不能直接复用这种设计。
+成功响应包含 `answer` 和 `routes`。`routes` 每项包含 `title`、`description`、`destination`、`stops`，每个站点有 `name`、`description`；普通问答或提取失败时 `routes` 为空数组。请求失败时接口返回错误状态，客户端显示错误提示。路线整理会额外消耗一次模型请求。
 
-## 知识库使用方式
+## 知识库与会话
 
-把经过整理的目的地资料放到 `knowledge/` 目录下，支持 `.md` 和 `.txt` 文件。适合放入：景点介绍、区域关系、交通常识、季节性建议和本地美食资料。当前索引在模块导入时一次性建立，新增或修改文件后需要重启服务才能生效。
+把 UTF-8 编码的 `.md` 或 `.txt` 文件放入 `knowledge/`。索引在 `app/RAG.py` **首次导入时**构建：新增或修改资料后需要重启服务；仅刷新浏览器或更换 `thread_id` 不会更新已加载的索引。
 
-建议后续为每条资料补充来源、更新时间、适用季节和城市字段，并在回答中保留来源，避免把过期攻略当成事实。
+工作流每轮都会重新查询**当前进程中的索引**，并通过 `knowledge_context` 状态字段传入模型。不过检索问题直接使用最新一条用户消息，像“第二天呢？”这样的省略式追问可能匹配不到目的地。TF-IDF 也不保证每次都找出真正相关的资料，回答中的来源应人工核对。
 
-## 面向旅行助手的迭代路线
+地图依赖浏览器加载 Leaflet 和 OpenStreetMap 瓦片。点击路线卡片后，客户端按不超过每秒一次的速度查询 Nominatim 公开地理编码服务；找不到的站点不会被标记。地图上的虚线是站点顺序示意，**不是真实道路导航**。地点名称会发送到第三方定位服务，部署前应核对其使用政策与隐私要求。
 
-### 第一阶段：修复基础可靠性
+客户端把 `thread_id` 保存在当前标签页的 `sessionStorage` 中；右上角重置按钮会生成新编号并清空页面消息，**不会删除**服务端旧检查点或长期记忆。刷新页面会清空可见消息，但同一标签页仍可沿用原会话编号与服务端上下文。
 
-- 修复 RAG 导入和检索返回逻辑，补齐空目录与无命中测试
-- 将模型调用和外部工具调用封装为可超时、可重试的服务
-- 将长期记忆改为按用户标识隔离，并增加查看、删除和纠错能力
-- 增加 API、工作流和错误路径测试
+长期记忆目前没有用户身份隔离，所有会话共享同一记忆库；提取也不是以用户明确授权为前提。因此不要在多人或生产环境中直接使用，也不要输入敏感个人信息。
 
-### 第二阶段：替换为旅行领域工具
+## 当前限制与下一步
 
-- `destination_search`：目的地和景点资料检索
-- `route_planner`：城市内交通和景点顺序规划
-- `weather_lookup`：按日期查询天气
-- `opening_hours`：查询营业时间和闭馆日
-- `budget_estimator`：按人数、天数和交通方式估算预算
-- `itinerary_editor`：新增、删除、替换某一天的安排
+- 尚无路线距离计算、天气、营业时间、票价或预订接口；联网搜索结果也不能替代官方实时信息。
+- 路线卡片依赖模型从文字中提取地点，不保证每次生成，也不保证地理编码一定命中；仍需核对地点准确性。
+- 客户端没有结构化日程编辑、历史会话列表或来源的独立展示。
+- 增加可刷新索引机制、会话感知的检索问题构造，以及更可靠的相关性判断。
+- 为长期记忆增加用户隔离、明确授权和查看/删除能力。
+- 补齐依赖清单，以及 API、RAG、工作流和客户端的测试。当前 `tests/` 覆盖记忆提取、一次 Agent 回答、路线 JSON 校验和检索状态字段，尚未覆盖浏览器地图交互的自动化测试。
 
-所有外部工具都应返回来源、查询时间、置信度和失败状态；实时数据与本地知识库内容要明确区分。
+运行现有测试：
 
-### 第三阶段：形成可用的规划体验
-
-- 用结构化的旅行需求模型收集目的地、日期、预算、偏好和限制条件
-- 输出包含每日时间段、交通衔接、预计耗时、预算和备选方案的行程
-- 支持用户逐轮修改，而不是每次重新生成整份计划
-- 对高风险信息（签证、天气预警、营业状态、价格）要求确认来源或提示人工核验
-- 增加评测集，检查事实性、行程可执行性、预算一致性和个性化程度
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```

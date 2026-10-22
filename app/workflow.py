@@ -17,6 +17,7 @@ from app.RAG import search_knowledge_base, retrieve_documents
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
+    knowledge_context: str
 
 tools = [search_knowledge_base, web_search]
 llm_with_tools = llm.bind_tools(tools)
