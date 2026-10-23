@@ -7,6 +7,8 @@ const statusText = document.querySelector('#status-text');
 const mapTitle = document.querySelector('#map-title');
 const mapStatus = document.querySelector('#map-status');
 const mapStops = document.querySelector('#map-stops');
+const workspace = document.querySelector('.workspace');
+const mapPanel = document.querySelector('.map-panel');
 const threadKey = 'xingji-thread-id';
 let threadId = sessionStorage.getItem(threadKey) || `web-${crypto.randomUUID()}`;
 let map;
@@ -92,6 +94,23 @@ function ensureMap() {
   requestAnimationFrame(() => map.invalidateSize());
 }
 
+async function revealMapPanel() {
+  if (workspace.classList.contains('map-open')) return;
+  mapPanel.inert = false;
+  mapPanel.setAttribute('aria-hidden', 'false');
+  workspace.classList.add('map-open');
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    await new Promise(resolve => setTimeout(resolve, 560));
+  }
+}
+
+function closeMapPanel() {
+  selectionId++;
+  workspace.classList.remove('map-open');
+  mapPanel.inert = true;
+  mapPanel.setAttribute('aria-hidden', 'true');
+}
+
 async function geocode(name, destination) {
   const query = `${name}, ${destination}`;
   if (geocodeCache.has(query)) return geocodeCache.get(query);
@@ -116,8 +135,10 @@ async function selectRoute(route) {
   mapTitle.textContent = route.title;
   mapStops.replaceChildren();
   mapStatus.textContent = '正在定位路线中的地点…';
-  document.querySelector('.map-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   try {
+    await revealMapPanel();
+    if (currentSelection !== selectionId) return;
+    mapPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     ensureMap();
     if (routeLayer) routeLayer.remove();
     routeLayer = L.layerGroup().addTo(map);
@@ -212,7 +233,7 @@ document.querySelectorAll('.suggestion').forEach(button => button.addEventListen
   input.focus();
 }));
 document.querySelector('#clear-btn').addEventListener('click', () => {
-  selectionId++;
+  closeMapPanel();
   sessionStorage.removeItem(threadKey);
   threadId = `web-${crypto.randomUUID()}`;
   sessionStorage.setItem(threadKey, threadId);
@@ -223,6 +244,7 @@ document.querySelector('#clear-btn').addEventListener('click', () => {
   if (routeLayer) routeLayer.remove();
   document.querySelector('#map-empty').hidden = false;
 });
+document.querySelector('#close-map-btn').addEventListener('click', closeMapPanel);
 
 fetch('/health').then(response => {
   if (!response.ok) throw new Error();

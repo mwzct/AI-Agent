@@ -34,10 +34,10 @@
           <div class="composer-meta"><span>Enter 发送 · Shift + Enter 换行</span><span id="char-count">0 / 4000</span></div>
         </div>
       </section>
-      <aside class="map-panel" aria-label="路线地图">
+      <aside class="map-panel" aria-label="路线地图" aria-hidden="true" inert>
         <div class="map-head">
           <div><span class="section-label">ROUTE MAP</span><h2 id="map-title">路线地图</h2></div>
-          <span class="map-badge">地图预览</span>
+          <button id="close-map-btn" class="icon-button" type="button" title="关闭地图" aria-label="关闭地图">×</button>
         </div>
         <div class="map-frame">
           <div id="map" role="img" aria-label="所选路线的地点地图"></div>
