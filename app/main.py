@@ -61,6 +61,7 @@ def chat(request: ChatRequest):
                 "configurable": {
                     "thread_id": request.thread_id,
                     "memory_context": memory_context,
+                    "recursion_limit": 20,
                 }
             }
         )
